@@ -201,6 +201,36 @@ class DataProcessor(object):
       return lines
 
 
+class ThucnewsProcessor(DataProcessor):
+  """Processor for my Thucnews classification """
+  def __init__(self):
+    self.labels = ['体育', '财经', '房产', '家居', '教育', '科技', '时尚', '时政', '游戏', '娱乐']
+
+  def get_train_examples(self, data_dir):
+    return self._create_examples(
+      self._read_tsv(os.path.join(data_dir, 'cnews.train.txt')), 'train')
+
+  def get_dev_examples(self, data_dir):
+    return self._create_examples(
+      self._read_tsv(os.path.join(data_dir, 'cnews.val.txt')), 'val')
+
+  def get_test_examples(self, data_dir):
+    return self._create_examples(
+      self._read_tsv(os.path.join(data_dir, 'cnews.test.txt')), 'test')
+
+  def get_labels(self):
+    return self.labels
+
+  def _create_examples(self, lines, set_type):
+    """create examples for the training and val sets"""
+    examples = []
+    for (i, line) in enumerate(lines):
+      guid = '%s-%s' %(set_type, i)
+      text_a = tokenization.convert_to_unicode(line[1])
+      label = tokenization.convert_to_unicode(line[0])
+      examples.append(InputExample(guid=guid, text_a=text_a, label=label))
+    return examples
+
 class XnliProcessor(DataProcessor):
   """Processor for the XNLI data set."""
 
@@ -785,6 +815,7 @@ def main(_):
       "mnli": MnliProcessor,
       "mrpc": MrpcProcessor,
       "xnli": XnliProcessor,
+      "thucnews": ThucnewsProcessor,
   }
 
   tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
