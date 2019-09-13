@@ -25,6 +25,7 @@ import modeling
 import optimization
 import tokenization
 import tensorflow as tf
+from random import shuffle
 
 flags = tf.flags
 
@@ -224,6 +225,7 @@ class ThucnewsProcessor(DataProcessor):
   def _create_examples(self, lines, set_type):
     """create examples for the training and val sets"""
     examples = []
+    # shuffle(lines) # shuffle samples
     for (i, line) in enumerate(lines):
       guid = '%s-%s' %(set_type, i)
       text_a = tokenization.convert_to_unicode(line[1])
@@ -651,6 +653,10 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
   def model_fn(features, labels, mode, params):  # pylint: disable=unused-argument
     """The `model_fn` for TPUEstimator."""
 
+    global_step = tf.train.get_global_step()
+
+    tf.logging.info("@@@@global_step = %s, labels = %s" % (global_step, labels))
+
     tf.logging.info("*** Features ***")
     for name in sorted(features.keys()):
       tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
@@ -670,6 +676,15 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
     (total_loss, per_example_loss, logits, probabilities) = create_model(
         bert_config, is_training, input_ids, input_mask, segment_ids, label_ids,
         num_labels, use_one_hot_embeddings)
+
+    # predicted_logit = tf.argmax(input=logits, axis=1,
+    #                             output_type=tf.int32)
+
+    # accuracy = tf.metrics.accuracy(
+    #     labels=labels, predictions=predicted_logit, name='acc')
+
+    tf.summary.scalar('loss', total_loss)
+    # tf.summary.scalar('accuracy', accuracy)
 
     tvars = tf.trainable_variables()
     initialized_variable_names = {}
@@ -696,6 +711,13 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
                       init_string)
 
     output_spec = None
+
+    # Create a hook to print loss & global step every 1 iter.
+    train_tensors_log = {'loss': total_loss,
+                         'global_step': global_step}
+    training_hooks = tf.train.LoggingTensorHook(
+        tensors=train_tensors_log, every_n_iter=1)
+
     if mode == tf.estimator.ModeKeys.TRAIN:
 
       train_op = optimization.create_optimizer(
@@ -705,7 +727,8 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
           mode=mode,
           loss=total_loss,
           train_op=train_op,
-          scaffold_fn=scaffold_fn)
+          scaffold_fn=scaffold_fn,
+          training_hooks=training_hooks)
     elif mode == tf.estimator.ModeKeys.EVAL:
 
       def metric_fn(per_example_loss, label_ids, logits, is_real_example):
@@ -914,11 +937,12 @@ def main(_):
         is_training=True,
         drop_remainder=True)
 
-    tensors_to_log = {"train loss": "loss/Mean:0"}
-    logging_hook = tf.train.LoggingTensorHook(
-        tensors=tensors_to_log, every_n_iter=1)
+    # tensors_to_log = {"train loss": "loss/Mean:0"}
+    # logging_hook = tf.train.LoggingTensorHook(
+    #     tensors=tensors_to_log, every_n_iter=1)
 
-    estimator.train(input_fn=train_input_fn, hooks=[logging_hook], max_steps=num_train_steps)
+    # estimator.train(input_fn=train_input_fn, hooks=[logging_hook], max_steps=num_train_steps)
+    estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
   if FLAGS.do_eval:
     eval_examples = processor.get_dev_examples(FLAGS.data_dir)
