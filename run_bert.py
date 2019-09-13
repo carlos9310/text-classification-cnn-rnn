@@ -685,7 +685,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
     # tf.logging.info(f'predicted_logit : {predicted_logit} ')
 
-    tf.summary.scalar('loss', total_loss)
+    # tf.summary.scalar('loss', total_loss)
     # tf.summary.scalar('accuracy', accuracy)
 
     tvars = tf.trainable_variables()
