@@ -655,7 +655,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
     global_step = tf.train.get_global_step()
 
-    tf.logging.info("@@@@global_step = %s, labels = %s" % (global_step, labels))
+    tf.logging.info("@@@@global_step = %s, labels = %s, features = %s" % (global_step, labels, features))
 
     tf.logging.info("*** Features ***")
     for name in sorted(features.keys()):
@@ -677,11 +677,13 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         bert_config, is_training, input_ids, input_mask, segment_ids, label_ids,
         num_labels, use_one_hot_embeddings)
 
-    # predicted_logit = tf.argmax(input=logits, axis=1,
-    #                             output_type=tf.int32)
+    predicted_logit = tf.argmax(input=logits, axis=1,
+                                output_type=tf.int32)
 
     # accuracy = tf.metrics.accuracy(
     #     labels=labels, predictions=predicted_logit, name='acc')
+
+    # tf.logging.info(f'predicted_logit : {predicted_logit} ')
 
     tf.summary.scalar('loss', total_loss)
     # tf.summary.scalar('accuracy', accuracy)
@@ -714,7 +716,9 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
     # Create a hook to print loss & global step every 1 iter.
     train_tensors_log = {'loss': total_loss,
-                         'global_step': global_step}
+                         'global_step': global_step,
+                         'labels': labels,
+                         'predicted_logit': predicted_logit}
     training_hooks = tf.train.LoggingTensorHook(
         tensors=train_tensors_log, every_n_iter=1)
 
