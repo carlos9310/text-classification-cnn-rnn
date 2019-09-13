@@ -713,9 +713,17 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         accuracy = tf.metrics.accuracy(
             labels=label_ids, predictions=predictions, weights=is_real_example)
         loss = tf.metrics.mean(values=per_example_loss, weights=is_real_example)
+
+        auc = tf.metrics.auc(labels=label_ids, predictions=predictions, weights=is_real_example)
+        precision = tf.metrics.precision(labels=label_ids, predictions=predictions, weights=is_real_example)
+        recall = tf.metrics.recall(labels=label_ids, predictions=predictions, weights=is_real_example)
+
         return {
             "eval_accuracy": accuracy,
             "eval_loss": loss,
+            "eval_auc": auc,
+            "eval_precision": precision,
+            "eval_recall": recall,
         }
 
       eval_metrics = (metric_fn,
@@ -905,7 +913,12 @@ def main(_):
         seq_length=FLAGS.max_seq_length,
         is_training=True,
         drop_remainder=True)
-    estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
+
+    tensors_to_log = {"train loss": "loss/Mean:0"}
+    logging_hook = tf.train.LoggingTensorHook(
+        tensors=tensors_to_log, every_n_iter=1)
+
+    estimator.train(input_fn=train_input_fn, hooks=[logging_hook], max_steps=num_train_steps)
 
   if FLAGS.do_eval:
     eval_examples = processor.get_dev_examples(FLAGS.data_dir)
