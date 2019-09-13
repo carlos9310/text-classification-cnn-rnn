@@ -713,7 +713,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
     output_spec = None
 
     # Create a hook to print loss & global step every 1 iter.
-    train_tensors_log = {'loss': total_loss,
+    train_tensors_log = {'loss': "loss/Mean:0",
                          'global_step': global_step}
     training_hooks = tf.train.LoggingTensorHook(
         tensors=train_tensors_log, every_n_iter=1)
