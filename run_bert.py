@@ -737,20 +737,21 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
       def metric_fn(per_example_loss, label_ids, logits, is_real_example):
         predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)
+        tf.logging.info(f'label_ids:{label_ids}    logits:{logits}    predictions:{predictions}     is_real_example:{is_real_example}')
         accuracy = tf.metrics.accuracy(
             labels=label_ids, predictions=predictions, weights=is_real_example)
         loss = tf.metrics.mean(values=per_example_loss, weights=is_real_example)
 
-        auc = tf.metrics.auc(labels=label_ids, predictions=predictions, weights=is_real_example)
-        precision = tf.metrics.precision(labels=label_ids, predictions=predictions, weights=is_real_example)
-        recall = tf.metrics.recall(labels=label_ids, predictions=predictions, weights=is_real_example)
+        # auc = tf.metrics.auc(labels=label_ids, predictions=predictions, weights=is_real_example)
+        # precision = tf.metrics.precision(labels=label_ids, predictions=predictions, weights=is_real_example)
+        # recall = tf.metrics.recall(labels=label_ids, predictions=predictions, weights=is_real_example)
 
         return {
             "eval_accuracy": accuracy,
             "eval_loss": loss,
-            "eval_auc": auc,
-            "eval_precision": precision,
-            "eval_recall": recall,
+            # "eval_auc": auc,
+            # "eval_precision": precision,
+            # "eval_recall": recall,
         }
 
       eval_metrics = (metric_fn,
