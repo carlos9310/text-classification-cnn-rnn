@@ -225,7 +225,7 @@ class ThucnewsProcessor(DataProcessor):
   def _create_examples(self, lines, set_type):
     """create examples for the training and val sets"""
     examples = []
-    # shuffle(lines) # shuffle samples
+    shuffle(lines) # shuffle samples
     for (i, line) in enumerate(lines):
       guid = '%s-%s' %(set_type, i)
       text_a = tokenization.convert_to_unicode(line[1])
