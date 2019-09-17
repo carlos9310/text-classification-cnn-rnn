@@ -759,7 +759,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
             "eval_precision": precision,
             "eval_recall": recall,
             'global_step': global_step,
-            'learning_rate': learning_rate,
+            'learning_rate': tf.convert_to_tensor(learning_rate),
         }
 
       eval_metrics = (metric_fn,
