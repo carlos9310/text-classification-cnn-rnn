@@ -206,9 +206,9 @@ class BertModel(object):
             input_tensor=self.embedding_output,
             attention_mask=attention_mask,
             hidden_size=config.hidden_size,
-            num_hidden_layers=config.num_hidden_layers,
+            num_hidden_layers=config.num_hidden_layers,  # transformer_encoder 层数
             num_attention_heads=config.num_attention_heads,
-            intermediate_size=config.intermediate_size,
+            intermediate_size=config.intermediate_size,  # FNN 隐单元数 = hidden_size * 4
             intermediate_act_fn=get_activation(config.hidden_act),
             hidden_dropout_prob=config.hidden_dropout_prob,
             attention_probs_dropout_prob=config.attention_probs_dropout_prob,
@@ -399,7 +399,7 @@ def embedding_lookup(input_ids,
     float Tensor of shape [batch_size, seq_length, embedding_size].
   """
   # This function assumes that the input is of shape [batch_size, seq_length,
-  # num_inputs].
+  # num_inputs].  note: num_inputs 表示每个token的编号
   #
   # If the input is a 2D tensor of shape [batch_size, seq_length], we
   # reshape to [batch_size, seq_length, 1].

@@ -225,7 +225,7 @@ class ThucnewsProcessor(DataProcessor):
   def _create_examples(self, lines, set_type):
     """create examples for the training and val sets"""
     examples = []
-    shuffle(lines) # shuffle samples
+    # shuffle(lines) # shuffle samples
     for (i, line) in enumerate(lines):
       guid = '%s-%s' %(set_type, i)
       text_a = tokenization.convert_to_unicode(line[1])
@@ -563,6 +563,7 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
 
   def input_fn(params):
     """The actual input function."""
+    tf.logging.info(f'params in input_fu(params): {params}')
     batch_size = params["batch_size"]
 
     # For training, we want a lot of parallel reading and shuffling.
@@ -570,7 +571,7 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
     d = tf.data.TFRecordDataset(input_file)
     if is_training:
       d = d.repeat()
-      d = d.shuffle(buffer_size=100)
+      d = d.shuffle(buffer_size=5000)  # 根据自己的训练集修改，保证buffer_size >= len(train examples)
 
     d = d.apply(
         tf.contrib.data.map_and_batch(
@@ -655,8 +656,6 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
     global_step = tf.train.get_global_step()
 
-    tf.logging.info("@@@@global_step = %s, labels = %s, features = %s" % (global_step, labels, features))
-
     tf.logging.info("*** Features ***")
     for name in sorted(features.keys()):
       tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
@@ -680,8 +679,11 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
     predicted_logit = tf.argmax(input=logits, axis=1,
                                 output_type=tf.int32)
 
-    # accuracy = tf.metrics.accuracy(
-    #     labels=labels, predictions=predicted_logit, name='acc')
+    # tf.logging.info("@@@@global_step = %s \n real_ids = %s \n predicted_ids" % (
+    # global_step, features["label_ids"], predicted_logit))
+
+    accuracy = tf.metrics.accuracy(
+        labels=features["label_ids"], predictions=predicted_logit, name='acc')
 
     # tf.logging.info(f'predicted_logit : {predicted_logit} ')
 
@@ -709,18 +711,22 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
       init_string = ""
       if var.name in initialized_variable_names:
         init_string = ", *INIT_FROM_CKPT*"
+      else:
+        init_string = ", *INIT_FROM_GRAPH*"
       tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape,
                       init_string)
 
     output_spec = None
 
     # Create a hook to print loss & global step every 1 iter.
-    train_tensors_log = {'loss': total_loss,
+    tensors_log = {'loss': total_loss,
+                         'acc': accuracy,
                          'global_step': global_step,
-                         # 'labels': labels,
-                         'predicted_logit': predicted_logit}
+                         'learning_rate': learning_rate,
+                         'real_ids': features["label_ids"],
+                         'predicted_ids': predicted_logit}
     training_hooks = tf.train.LoggingTensorHook(
-        tensors=train_tensors_log, every_n_iter=1)
+        tensors=tensors_log, every_n_iter=1)
 
     if mode == tf.estimator.ModeKeys.TRAIN:
 
@@ -742,16 +748,18 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
             labels=label_ids, predictions=predictions, weights=is_real_example)
         loss = tf.metrics.mean(values=per_example_loss, weights=is_real_example)
 
-        # auc = tf.metrics.auc(labels=label_ids, predictions=predictions, weights=is_real_example)
-        # precision = tf.metrics.precision(labels=label_ids, predictions=predictions, weights=is_real_example)
-        # recall = tf.metrics.recall(labels=label_ids, predictions=predictions, weights=is_real_example)
+        auc = tf.metrics.auc(labels=label_ids, predictions=predictions, weights=is_real_example)
+        precision = tf.metrics.precision(labels=label_ids, predictions=predictions, weights=is_real_example)
+        recall = tf.metrics.recall(labels=label_ids, predictions=predictions, weights=is_real_example)
 
         return {
             "eval_accuracy": accuracy,
             "eval_loss": loss,
-            # "eval_auc": auc,
-            # "eval_precision": precision,
-            # "eval_recall": recall,
+            "eval_auc": auc,
+            "eval_precision": precision,
+            "eval_recall": recall,
+            'global_step': global_step,
+            'learning_rate': learning_rate,
         }
 
       eval_metrics = (metric_fn,
@@ -765,6 +773,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode,
           predictions={"probabilities": probabilities},
+          prediction_hooks=[training_hooks],
           scaffold_fn=scaffold_fn)
     return output_spec
 
@@ -773,56 +782,56 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
 # This function is not used by this file but is still used by the Colab and
 # people who depend on it.
-def input_fn_builder(features, seq_length, is_training, drop_remainder):
-  """Creates an `input_fn` closure to be passed to TPUEstimator."""
-
-  all_input_ids = []
-  all_input_mask = []
-  all_segment_ids = []
-  all_label_ids = []
-
-  for feature in features:
-    all_input_ids.append(feature.input_ids)
-    all_input_mask.append(feature.input_mask)
-    all_segment_ids.append(feature.segment_ids)
-    all_label_ids.append(feature.label_id)
-
-  def input_fn(params):
-    """The actual input function."""
-    batch_size = params["batch_size"]
-
-    num_examples = len(features)
-
-    # This is for demo purposes and does NOT scale to large data sets. We do
-    # not use Dataset.from_generator() because that uses tf.py_func which is
-    # not TPU compatible. The right way to load data is with TFRecordReader.
-    d = tf.data.Dataset.from_tensor_slices({
-        "input_ids":
-            tf.constant(
-                all_input_ids, shape=[num_examples, seq_length],
-                dtype=tf.int32),
-        "input_mask":
-            tf.constant(
-                all_input_mask,
-                shape=[num_examples, seq_length],
-                dtype=tf.int32),
-        "segment_ids":
-            tf.constant(
-                all_segment_ids,
-                shape=[num_examples, seq_length],
-                dtype=tf.int32),
-        "label_ids":
-            tf.constant(all_label_ids, shape=[num_examples], dtype=tf.int32),
-    })
-
-    if is_training:
-      d = d.repeat()
-      d = d.shuffle(buffer_size=100)
-
-    d = d.batch(batch_size=batch_size, drop_remainder=drop_remainder)
-    return d
-
-  return input_fn
+# def input_fn_builder(features, seq_length, is_training, drop_remainder):
+#   """Creates an `input_fn` closure to be passed to TPUEstimator."""
+#
+#   all_input_ids = []
+#   all_input_mask = []
+#   all_segment_ids = []
+#   all_label_ids = []
+#
+#   for feature in features:
+#     all_input_ids.append(feature.input_ids)
+#     all_input_mask.append(feature.input_mask)
+#     all_segment_ids.append(feature.segment_ids)
+#     all_label_ids.append(feature.label_id)
+#
+#   def input_fn(params):
+#     """The actual input function."""
+#     batch_size = params["batch_size"]
+#
+#     num_examples = len(features)
+#
+#     # This is for demo purposes and does NOT scale to large data sets. We do
+#     # not use Dataset.from_generator() because that uses tf.py_func which is
+#     # not TPU compatible. The right way to load data is with TFRecordReader.
+#     d = tf.data.Dataset.from_tensor_slices({
+#         "input_ids":
+#             tf.constant(
+#                 all_input_ids, shape=[num_examples, seq_length],
+#                 dtype=tf.int32),
+#         "input_mask":
+#             tf.constant(
+#                 all_input_mask,
+#                 shape=[num_examples, seq_length],
+#                 dtype=tf.int32),
+#         "segment_ids":
+#             tf.constant(
+#                 all_segment_ids,
+#                 shape=[num_examples, seq_length],
+#                 dtype=tf.int32),
+#         "label_ids":
+#             tf.constant(all_label_ids, shape=[num_examples], dtype=tf.int32),
+#     })
+#
+#     if is_training:
+#       d = d.repeat()
+#       d = d.shuffle(buffer_size=100)
+#
+#     d = d.batch(batch_size=batch_size, drop_remainder=drop_remainder)
+#     return d
+#
+#   return input_fn
 
 
 # This function is not used by this file but is still used by the Colab and
