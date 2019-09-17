@@ -722,7 +722,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
     tensors_log = {'loss': total_loss,
                    'acc': accuracy[0],
                    'global_step': global_step,
-                   'learning_rate': learning_rate,
+                   'learning_rate': tf.convert_to_tensor(learning_rate),
                    'real_ids': features["label_ids"],
                    'predicted_ids': predicted_logit}
     training_hooks = tf.train.LoggingTensorHook(
