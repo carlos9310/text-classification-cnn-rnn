@@ -225,7 +225,7 @@ class ThucnewsProcessor(DataProcessor):
   def _create_examples(self, lines, set_type):
     """create examples for the training and val sets"""
     examples = []
-    shuffle(lines) # shuffle samples
+    # shuffle(lines) # shuffle samples
     for (i, line) in enumerate(lines):
       guid = '%s-%s' %(set_type, i)
       text_a = tokenization.convert_to_unicode(line[1])
@@ -571,7 +571,7 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
     d = tf.data.TFRecordDataset(input_file)
     if is_training:
       d = d.repeat()
-      d = d.shuffle(buffer_size=5000)  # 根据自己的训练集修改，保证buffer_size >= len(train examples)
+      d = d.shuffle(buffer_size=50000)  # 根据自己的训练集修改，保证buffer_size >= len(train examples)
 
     d = d.apply(
         tf.contrib.data.map_and_batch(
