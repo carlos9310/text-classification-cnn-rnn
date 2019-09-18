@@ -686,6 +686,9 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
     accuracy = tf.metrics.accuracy(
         labels=features["label_ids"], predictions=predicted_logit, name='acc')
 
+    stream_vars = [i for i in tf.local_variables()]
+    tf.logging.info(f'stream_vars:{stream_vars}')
+
     # tf.logging.info(f'predicted_logit : {predicted_logit} ')
 
     # tf.summary.scalar('loss', total_loss)
@@ -722,6 +725,9 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
     # Create a hook to print loss & global step every 1 iter.
     tensors_log = {'loss': total_loss,
                    'acc': accuracy[1],
+                   'total': stream_vars[1],
+                   'count': stream_vars[0],
+                   # 'logits': logits,
                    'global_step': global_step,
                    'learning_rate': tf.convert_to_tensor(learning_rate),
                    'real_ids': features["label_ids"],
@@ -742,21 +748,21 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
           training_hooks=[training_hooks])
     elif mode == tf.estimator.ModeKeys.EVAL:
 
-      def metric_fn(per_example_loss, label_ids, logits, is_real_example):
+      def metric_fn(per_example_loss, label_ids, logits, is_real_example,probabilities):
         predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)
-        tf.logging.info(f'label_ids:{label_ids}    logits:{logits}    predictions:{predictions}     is_real_example:{is_real_example}')
+        tf.logging.info(f'label_ids:{label_ids} logits:{logits} predictions:{predictions} is_real_example:{is_real_example} probabilities:{probabilities}')
         accuracy = tf.metrics.accuracy(
             labels=label_ids, predictions=predictions, weights=is_real_example)
         loss = tf.metrics.mean(values=per_example_loss, weights=is_real_example)
 
-        # auc = tf.metrics.auc(labels=label_ids, predictions=predictions, weights=is_real_example)
+        auc = tf.metrics.auc(labels=label_ids, predictions=tf.reduce_max(probabilities,axis=-1), weights=is_real_example)
         precision = tf.metrics.precision(labels=label_ids, predictions=predictions, weights=is_real_example)
         recall = tf.metrics.recall(labels=label_ids, predictions=predictions, weights=is_real_example)
 
         return {
             "eval_accuracy": accuracy,
             "eval_loss": loss,
-            # "eval_auc": auc, # 只能是[0 1]
+            "eval_auc": auc,
             "eval_precision": precision,
             "eval_recall": recall,
             # 'global_step': global_step, # 与eval 不兼容
@@ -764,7 +770,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         }
 
       eval_metrics = (metric_fn,
-                      [per_example_loss, label_ids, logits, is_real_example])
+                      [per_example_loss, label_ids, logits, is_real_example, probabilities])
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode,
           loss=total_loss,
