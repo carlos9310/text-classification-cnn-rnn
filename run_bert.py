@@ -682,6 +682,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
     # tf.logging.info("@@@@global_step = %s \n real_ids = %s \n predicted_ids" % (
     # global_step, features["label_ids"], predicted_logit))
 
+    # 参考 https://codeday.me/bug/20180901/236600.html
     accuracy = tf.metrics.accuracy(
         labels=features["label_ids"], predictions=predicted_logit, name='acc')
 
@@ -720,7 +721,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
     # Create a hook to print loss & global step every 1 iter.
     tensors_log = {'loss': total_loss,
-                   'acc': accuracy[0],
+                   'acc': accuracy[1],
                    'global_step': global_step,
                    'learning_rate': tf.convert_to_tensor(learning_rate),
                    'real_ids': features["label_ids"],
@@ -748,18 +749,18 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
             labels=label_ids, predictions=predictions, weights=is_real_example)
         loss = tf.metrics.mean(values=per_example_loss, weights=is_real_example)
 
-        auc = tf.metrics.auc(labels=label_ids, predictions=predictions, weights=is_real_example)
+        # auc = tf.metrics.auc(labels=label_ids, predictions=predictions, weights=is_real_example)
         precision = tf.metrics.precision(labels=label_ids, predictions=predictions, weights=is_real_example)
         recall = tf.metrics.recall(labels=label_ids, predictions=predictions, weights=is_real_example)
 
         return {
             "eval_accuracy": accuracy,
             "eval_loss": loss,
-            "eval_auc": auc,
+            # "eval_auc": auc, # 只能是[0 1]
             "eval_precision": precision,
             "eval_recall": recall,
-            'global_step': global_step,
-            'learning_rate': tf.convert_to_tensor(learning_rate),
+            # 'global_step': global_step, # 与eval 不兼容
+            # 'learning_rate': tf.convert_to_tensor(learning_rate), # 与eval 不兼容
         }
 
       eval_metrics = (metric_fn,
