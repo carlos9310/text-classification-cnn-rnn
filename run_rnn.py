@@ -111,6 +111,10 @@ def train():
                 loss_train, acc_train = session.run([model.loss, model.acc], feed_dict=feed_dict)
                 loss_val, acc_val = evaluate(session, x_val, y_val)  # todo
 
+                for e in tvars:
+                    print("name: ", e.name)
+                    print("value: ", session.run(session.graph.get_tensor_by_name(e.name)))
+
                 if acc_val > best_acc_val:
                     # 保存最好结果
                     best_acc_val = acc_val
@@ -193,6 +197,10 @@ if __name__ == '__main__':
     words, word_to_id = read_vocab(vocab_dir)
     config.vocab_size = len(words)
     model = TextRNN(config)
+
+    tvars = tf.trainable_variables()
+    for var in tvars:
+        print(f'name = {var.name}, shape = {var.shape}')
 
     if sys.argv[1] == 'train':
         train()
